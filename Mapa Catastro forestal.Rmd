@@ -1,0 +1,168 @@
+---
+title: "Catastro de concesiones con Fines Maderables en MDD"
+author: "Gorky Florez Castillo"
+date: "28/10/2021"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    social: [ "twitter", "facebook", "whatsapp", "instagram", "telegram", "linkedin", "pinterest" ]
+    source_code: "https://github.com/GorkyFlorez"
+    theme: yeti
+---
+
+```{r setup, include=FALSE}
+require(pacman)
+pacman::p_load(png,broom,tidyverse,leaflet, leaflet.extras, leaflet.providers,leafem,htmlwidgets, sp,
+               sf,readxl,mapview,RColorBrewer,viridis,Rgb,ggplot2,raster,rmarkdown,flexdashboard,
+               crosstalk, DT,dplyr,htmltools,rgdal, broom,leafem,mapview, Rgb, raster,rmarkdown, 
+               mapedit, tibble, cptcity, openxlsx, ggspatial)
+
+MD<- st_read("SHP/MDD.shp")
+MDD  <- st_transform(MD,crs = st_crs("+proj=longlat +datum=WGS84 +no_defs"))
+
+Catastr_Fores    <- st_read("SHP/Catastro_forestal.shp")
+Catastr_Forestal <- st_transform(Catastr_Fores,crs = st_crs("+proj=longlat +datum=WGS84 +no_defs"))
+Aprovecha        <- read.xlsx("Excel/Aprove.xlsx", sheet="Hoja1") 
+Aprovecha_Forest <- cbind(Catastr_Forestal ,Aprovecha)
+
+#Definiendo el Logo
+m="https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png"
+
+
+polygon_popup <- paste0("<strong>Contrato: </strong>", Catastr_Forestal$contra, "<br>",
+                        "<strong>Titular: </strong>", Catastr_Forestal$nomtit,"<br>",
+                        "<strong>Otorgado: </strong>", Catastr_Forestal$nomrel,"<br>",
+                        "<strong>Sector: </strong>", Catastr_Forestal$sector,"<br>",
+                        "<strong>Perimetro: </strong>", Catastr_Forestal$perim,"<br>",
+                        "<strong>Modalidad: </strong>", Catastr_Forestal$estade,"<br>",
+                        "<strong>Localidad: </strong>", Catastr_Forestal$autfor,"<br>")
+
+polygon_popup2<- paste0("<strong>Contrato: </strong>", Aprovecha_Forest$contra, "<br>",
+                        "<strong>Titular: </strong>", Aprovecha_Forest$nomtit,"<br>",
+                        "<strong>Otorgado: </strong>", Aprovecha_Forest$nomrel,"<br>",
+                        "<strong>Sector: </strong>", Aprovecha_Forest$sector,"<br>",
+                        "<strong>Perimetro: </strong>", Aprovecha_Forest$perim,"<br>",
+                        "<strong>Modalidad: </strong>", Aprovecha_Forest$estade,"<br>",
+                        "<strong>Localidad: </strong>", Aprovecha_Forest$autfor,"<br>",
+                        "<strong>Aprovechamiento 2019: </strong>", Aprovecha_Forest$Aprovechamiento,"<br>")
+
+
+pal_colores <- colorBin("YlOrRd",domain = Aprovecha_Forest$Aprovechamiento)
+m="https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png"
+
+
+Mapa_Base=leaflet() %>%
+  addControl(html = "<p><strong><em>Concesiones Forestales en Madre de Dios</em></strong></p>",
+             position = "topright")%>%
+  addLogo(m,url = "https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png",
+          position = "topleft",
+          offset.x = 50,
+          offset.y = 10,
+          width = 100,
+          height = 100)%>%
+  addPolygons(data= MDD ,
+              color = "#444444",
+              fillOpacity = 0.001,
+              weight = 2, 
+              popup = polygon_popup,
+              group = "MDD")%>%
+  addPolygons(data= Catastr_Forestal,
+              color = "darkgreen",
+              fillOpacity = 0.5,
+              weight = 2, 
+              popup = polygon_popup,
+              group = "Catastr_Forestal")%>%
+  addLayersControl(baseGroups = c("OSM","Satellite", "OTM","Toner","Terrain","Terrain.ESRI", "Toner Lite","CartoDB.Positron", "relieve"),
+                   overlayGroups = c("Catastr_Forestal", "MDD"),
+                   position = "topright",
+                   options = layersControlOptions(collapsed = T))%>%
+  addProviderTiles(providers$OpenStreetMap, group = "OSM")%>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite")%>%
+  addProviderTiles(providers$OpenTopoMap, group = "OTM")%>%
+  addProviderTiles(providers$Stamen.Toner, group = "Toner") %>%
+  addProviderTiles(providers$Stamen.Terrain, group = "Terrain") %>%
+  addProviderTiles(providers$Esri.WorldStreetMap, group = "Terrain.ESRI") %>%
+  addProviderTiles(providers$CartoDB.Positron, group ="CartoDB.Positron") %>%
+  addProviderTiles(providers$Stamen.TonerLite, group = "Toner Lite") %>%
+  addMiniMap(tiles = providers$Esri.WorldImagery,toggleDisplay = TRUE)%>%
+  addScaleBar(position = "bottomright",options = scaleBarOptions(maxWidth = 100,
+                                                                 metric = TRUE,
+                                                                 imperial = TRUE,
+                                                                 updateWhenIdle = TRUE)) %>%
+  addDrawToolbar(targetGroup = "Graficos",editOptions = editToolbarOptions(selectedPathOptions = selectedPathOptions()))%>%
+  addMeasure(position = "topleft",
+             primaryLengthUnit = "meters",
+             primaryAreaUnit = "sqmeters",
+             activeColor = "#3D535D",
+             completedColor = "#7D4479")
+
+
+
+
+Mapa_Forestal=leaflet() %>%
+  addControl(html = "<p><strong><em>Concesiones Forestales en Madre de Dios</em></strong></p>",
+             position = "topright")%>%
+  addLogo(m,url = "https://images.vexels.com/media/users/3/143561/isolated/preview/afa3aa927b63061e3b0222b7dab9cdbf-ubicaci--n-n--utica-norte-flecha-vintage-by-vexels.png",
+          position = "topleft",
+          offset.x = 50,
+          offset.y = 10,
+          width = 100,
+          height = 100)%>%
+  addScaleBar(position = "bottomright",options = scaleBarOptions(maxWidth = 100,
+                                                                 metric = TRUE,
+                                                                 imperial = TRUE,
+                                                                 updateWhenIdle = TRUE))%>%
+  addLayersControl(baseGroups = c("OSM","Satellite", "OTM","Toner","Terrain","Terrain.ESRI", "Toner Lite","CartoDB.Positron", "relieve"),
+                   overlayGroups = c("Aprovecha_Forest", "MDD"),
+                   position = "topright",
+                   options = layersControlOptions(collapsed = T))%>%
+   addProviderTiles(providers$OpenStreetMap, group = "OSM")%>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "Satellite")%>%
+  addProviderTiles(providers$OpenTopoMap, group = "OTM")%>%
+  addProviderTiles(providers$Stamen.Toner, group = "Toner") %>%
+  addProviderTiles(providers$Stamen.Terrain, group = "Terrain") %>%
+  addProviderTiles(providers$Esri.WorldStreetMap, group = "Terrain.ESRI") %>%
+  addProviderTiles(providers$CartoDB.Positron, group ="CartoDB.Positron") %>%
+  addProviderTiles(providers$Stamen.TonerLite, group = "Toner Lite") %>%
+  addPolygons(data= MDD ,
+              color = "#444444",
+              fillOpacity = 0.001,
+              weight = 2, 
+              group = "MDD")%>%
+  addPolygons(data= Aprovecha_Forest,
+              color = "white",
+              stroke = T,
+              weight ="1",
+              smoothFactor = 0.3,
+              fillOpacity = 0.7,
+              fillColor = ~pal_colores(Aprovecha_Forest$Aprovechamiento),
+              popup = polygon_popup1,
+              group = "Aprovecha_Forest")%>%
+  addLegend(pal = pal_colores, values = Aprovecha_Forest$Aprovechamiento,
+            labFormat = labelFormat(suffix = " indi/Con"),
+            opacity = 0.7, title = 'Leyenda', position = "bottomleft")%>%
+  addMiniMap(tiles = providers$Esri.WorldImagery,toggleDisplay = TRUE)
+
+```
+
+Data de Simulacion para efectos practicos
+===================================== 
+
+Column {data-width=550}
+-----------------------------------------------------------------------
+
+### Distribucion de Concesiones Foresteles con fines Maderables
+
+```{r map}
+Mapa_Base
+```
+
+
+
+Column {data-width=450}
+-----------------------------------------------------------------------
+### Aprovechamiento Producto forestales para el Año 2019
+
+```{r map1}
+Mapa_Forestal
+```
